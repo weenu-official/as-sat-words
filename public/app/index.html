@@ -712,6 +712,7 @@ function accountHTML(){
   return `<section class="acct"><h2 style="margin-top:0">Plan</h2><div class="pstatus on">${status}</div>
     ${g?`<p class="small muted" style="margin:10px 0 0"><b>44-day promise:</b> ${gtxt}</p>`:""}
     <div class="actions" style="flex-wrap:wrap">${actions}</div>
+    ${ENT&&ENT.expires_at?`<p class="small muted" style="margin:12px 0 0"><b>Refunds:</b> within 7 days of purchase if units beyond the free trial (Unit 4 and up) haven't been used. Email <a href="mailto:admin@weenu.com?subject=A's%20SAT%20Words%20refund">admin@weenu.com</a> from your account email. <a href="/legal/refund.html" target="_blank" rel="noopener">Refund policy</a></p>`:""}
     ${DEMO?`<p class="small muted" style="margin-top:8px">Demo mode: purchases are simulated on this device.</p>`:""}</section>`}
 function renderParent(){
   const L=tl(),today=studied(L),st=streak();
