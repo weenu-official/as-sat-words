@@ -4,9 +4,9 @@ window.AS_CONFIG = {
   supabaseAnonKey: "sb_publishable_uSjRP0MfZAMjJq12fYo_7g_3nVjldnz", // publishable (public) key
 
   paddleEnv: "sandbox",       // "sandbox" while testing, "production" when live
-  paddleClientToken: "",      // Paddle > Developer tools > Authentication > client-side token
-  priceProgram: "",           // pri_... (3-month program; add a KRW price override in Paddle)
-  priceExtension: "",         // pri_... (30-day review pass)
+  paddleClientToken: "test_963cc0b8697690ae5efdb3e4198", // Paddle > Developer tools > Authentication > client-side token
+  priceProgram: "pri_01m3sgvynzp2t918q4355ayk6m",         // pri_... (3-month program; add a KRW price override in Paddle)
+  priceExtension: "pri_01m3sh040y3hqvn21pp4bfytbg",         // pri_... (30-day review pass)
 
   // Labels shown in the app. Paddle checkout always shows the exact local price and tax.
   displayPrices: {
