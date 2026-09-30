@@ -1,7 +1,7 @@
 // A's SAT Words: deployment settings. Leave supabaseUrl empty to run in local demo mode.
 window.AS_CONFIG = {
-  supabaseUrl: "",            // e.g. https://abcd1234.supabase.co
-  supabaseAnonKey: "",        // Supabase > Project Settings > API > anon public key
+  supabaseUrl: "https://hlwqsddmuoxmhvhoqrwo.supabase.co",
+  supabaseAnonKey: "sb_publishable_uSjRP0MfZAMjJq12fYo_7g_3nVjldnz", // publishable (public) key
 
   paddleEnv: "sandbox",       // "sandbox" while testing, "production" when live
   paddleClientToken: "",      // Paddle > Developer tools > Authentication > client-side token
