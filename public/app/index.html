@@ -1,8 +1,9 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" translate="no">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="google" content="notranslate">
 <title>A's SAT Words</title>
 <meta name="description" content="350 Digital SAT words in 15 minutes a day. Built by a mom for her daughter.">
 <link rel="manifest" href="/manifest.webmanifest">
@@ -36,6 +37,9 @@ header{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;background:var
 .bar{max-width:640px;margin:0 auto;padding:14px 20px 0;display:flex;flex-direction:column;gap:10px}
 .brand{font-family:var(--serif);font-weight:700;font-size:20px;letter-spacing:-.01em}
 .brand span{color:var(--muted);font-weight:400}
+.brandrow{display:flex;justify-content:space-between;align-items:baseline;gap:12px}
+.about{font-size:14px;font-weight:600;color:var(--muted);text-decoration:none;padding:11px 0 11px 14px;margin:-6px 0}
+.about:hover{color:var(--ink);text-decoration:underline}
 nav{display:flex;gap:22px}
 nav button{background:none;border:0;padding:6px 0 10px;font:600 15px var(--sans);color:var(--muted);cursor:pointer;border-bottom:2px solid transparent}
 nav button[aria-current="page"]{color:var(--ink);border-bottom-color:var(--ink)}
@@ -229,7 +233,7 @@ body.nosample .morebtn{display:none}
 <body>
 <header>
   <div class="bar">
-    <div class="brand">A's SAT Words <span>350</span></div>
+    <div class="brandrow"><div class="brand">A's SAT Words <span>350</span></div><a class="about" href="/">About</a></div>
     <nav aria-label="Sections">
       <button data-tab="today" aria-current="page">Today</button>
       <button data-tab="words">Words</button>
