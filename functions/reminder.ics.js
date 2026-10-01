@@ -19,7 +19,6 @@ export function onRequestGet({ request }) {
     "VERSION:2.0",
     "PRODID:-//A's SAT Words//Reminder//EN",
     "CALSCALE:GREGORIAN",
-    "METHOD:PUBLISH",
     "BEGIN:VEVENT",
     "UID:as-sat-" + d + t + "-" + stamp + "@sat.weenu.com",
     "DTSTAMP:" + stamp,
