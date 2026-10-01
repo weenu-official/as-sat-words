@@ -102,6 +102,24 @@ h2{font-size:15px;font-weight:700;margin:32px 0 12px}
 .speak svg{width:18px;height:18px}
 .actions{margin-top:20px;display:flex;gap:10px}
 .hint{font-size:13px;color:var(--muted);margin-top:12px;text-align:center}
+/* primary buttons stay in view at the bottom of the screen while the card scrolls */
+.actions.stick{position:sticky;bottom:0;z-index:2;margin:14px -22px -24px;padding:12px 22px calc(12px + env(safe-area-inset-bottom,0px));background:var(--surface);border-top:1px solid var(--rule);border-radius:0 0 14px 14px}
+.fbhint{display:none}
+.qa,.qa #fb{display:contents}   /* one column: Next sticks to the screen bottom across the whole card */
+@media (hover:none){.hint.keys{display:none}}
+/* wide screens (tablet in landscape, laptop): question on the left, feedback and Next on the right */
+@media (min-width:960px){
+  body.sess .wrap,body.sess .bar{max-width:1040px}
+  body.sess .qa #fb{display:block}
+  body.sess .qa{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:36px;align-items:start}
+  body.sess .qa #fb .verdict{margin-top:0}
+  body.sess .qa .fbhint{display:block;margin:0;padding:16px;border:1px dashed var(--rule);border-radius:10px;color:var(--muted);font-size:14px}
+  body.sess .qa .actions.stick{margin:14px 0 0;padding:12px 0 calc(4px + env(safe-area-inset-bottom,0px));border-top:0;border-radius:0}
+  body.sess .qbody .opts{margin-top:14px;gap:8px}
+  body.sess .qbody .opt{padding:10px 14px;min-height:44px}
+  body.sess .card{margin-top:14px;padding:20px 22px}
+  body.sess .qa .actions.stick{margin-bottom:-4px}
+}
 /* words list */
 .search{width:100%;font:500 16px var(--sans);padding:13px 14px;border-radius:10px;border:1px solid var(--rule);background:var(--surface);color:var(--ink);margin-top:20px}
 .chips{display:flex;gap:8px;flex-wrap:wrap;margin:12px 0 6px}
@@ -504,8 +522,8 @@ function renderSession(){
     app.innerHTML=top+`<div class="card"><div class="kind"><span>New word · Unit ${Math.floor(TRACKS[TRACK_OF(item.i)].idx.indexOf(item.i)/UNIT)+1}</span></div>
       <div class="row" style="align-items:flex-start"><h2 class="head" style="margin:0"><span class="hl go">${esc(o.w)}</span></h2>${spkBtn(o.w)}</div>
       ${senseHTML(o,item.i)}${exBlock(item.i)}
-      <div class="actions"><button class="btn ghost" id="know" style="flex:1">I know this</button><button class="btn" id="got" style="flex:1.4">Learn it</button></div>
-      <p class="hint">"I know this" skips the word so you spend time only on new ones.</p></div>`;
+      <p class="hint">"I know this" skips the word so you spend time only on new ones.</p>
+      <div class="actions stick"><button class="btn ghost" id="know" style="flex:1">I know this</button><button class="btn" id="got" style="flex:1.4">Learn it</button></div></div>`;
     document.getElementById("got").onclick=()=>learnDone(false);
     document.getElementById("know").onclick=()=>learnDone(true);
   }else{
@@ -532,7 +550,7 @@ function renderSession(){
       <div class="spell"><input id="sp" autocomplete="off" autocapitalize="off" spellcheck="false" aria-label="Type the word" placeholder="Type the word"><button class="btn" id="chk">Check</button></div>
       <p class="hint">Starts with “${esc(o.w[0])}”, ${o.w.length} letters</p>`;
     }
-    app.innerHTML=top+`<div class="card"><div class="kind"><span>${labels[item.type]}</span>${item.retry?"<span>Try again</span>":""}</div>${body}<div id="fb"></div></div>`;
+    app.innerHTML=top+`<div class="card"><div class="kind"><span>${labels[item.type]}</span>${item.retry?"<span>Try again</span>":""}</div><div class="qa"><div class="qbody">${body}</div><div id="fb"><p class="fbhint">Choose an answer. The explanation appears here.</p></div></div></div>`;
     if(item.type==="spell"){
       const inp=document.getElementById("sp");inp.focus();
       const check=()=>{if(S.answered)return;const v=inp.value.trim().toLowerCase();if(!v)return;
@@ -553,7 +571,7 @@ function answer(item,ok){
   document.getElementById("fb").innerHTML=`<div class="verdict ${ok?"ok":"no"}">${ok?"Correct":(item.type==="meaning"?"Not quite. The correct meaning is highlighted.":"Not quite. The answer is “"+esc(item.type==="sat"?item.sq.o[0]:o.w)+"”.")}</div>
     ${item.type==="sat"?`<p class="small" style="margin:12px 0 0"><b>Why:</b> ${esc(item.sq.why)}</p>`:""}
     <div style="margin-top:18px"><div class="row" style="align-items:flex-start"><div class="head" style="font-size:30px"><span class="hl go">${esc(o.w)}</span></div>${spkBtn(o.w)}</div>${senseHTML(o,item.i,true)}${exBlock(item.i)}</div>
-    <div class="actions"><button class="btn wide" id="nx">Next</button></div><p class="hint">Press Enter to continue</p>`;
+    <p class="hint keys">Press Enter to continue</p><div class="actions stick"><button class="btn wide" id="nx">Next</button></div>`;
   document.getElementById("nx").onclick=next;if(!ok)speak(o.w);
 }
 document.addEventListener("keydown",e=>{
@@ -777,6 +795,7 @@ function renderLogin(){
   document.getElementById("emGo").onclick=go;
 }
 function render(){
+  document.body.classList.toggle("sess",!!S&&tab==="today"&&!!USER&&!(USER.guest&&loginOpen));
   document.querySelectorAll("nav button").forEach(b=>b.setAttribute("aria-current",b.dataset.tab===tab?"page":"false"));
   if(!READY){app.innerHTML=`<p class="muted" style="margin-top:28px">Loading…</p>`;return}
   if(!USER||(USER.guest&&(loginOpen||tab==="parent"))){renderLogin();return}
