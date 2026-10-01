@@ -703,11 +703,12 @@ function installGuide(){
     [IC.app,"Tap Add","The A's SAT icon appears on your home screen."]];
   return `<ol class="guide">${steps.map((x,n)=>`<li><span class="gi">${x[0]}</span><span class="gt"><b>${n+1}. ${x[1]}</b><span>${x[2]}</span></span></li>`).join("")}</ol>`}
 function habitHTML(){
-  if(HABIT.hide)return "";
+  if(HABIT.hide)return `<section class="habit"><div class="row"><h2 style="margin:0">Make it a habit</h2><button class="linkbtn" data-habit-show aria-expanded="false">Show</button></div>
+    <p class="small muted" style="margin:6px 0 0">Add to your home screen and set a daily reminder.</p></section>`;
   const inst=isStandalone()?`<p class="small muted" style="margin:0">Done. You opened this from your home screen.</p>`
     :installEvt?`<button class="btn ghost" data-install>Add to Home Screen</button>`
     :installGuide();
-  return `<section class="habit"><div class="row"><h2 style="margin:0">Make it a habit</h2><button class="linkbtn" data-habit-hide>Hide</button></div>
+  return `<section class="habit"><div class="row"><h2 style="margin:0">Make it a habit</h2><button class="linkbtn" data-habit-hide aria-expanded="true">Hide</button></div>
     <div class="hrow"><div><b>Home screen</b><span>Open A's SAT Words with one tap, like an app.</span></div>${inst}</div>
     <div class="hrow"><div><b>Daily reminder</b><span>${HABIT.set?`Added to your calendar for ${fmtTime(HABIT.time)}. Change the time and add it again to move it.`:`A calendar alert at the time you choose, every day for ${REMIND_DAYS} days.`}</span></div>
       <div class="hctl"><input type="time" id="remTime" value="${HABIT.time}" aria-label="Reminder time"><a class="btn ghost" data-gcal href="${esc(reminderGoogle())}" target="_blank" rel="noopener">Google Calendar</a><a class="btn ghost" data-ics href="${esc(reminderFile())}">Apple / other</a></div></div></section>`}
@@ -792,7 +793,6 @@ function progressHTML(ro){
     <h2>Often missed</h2>
     ${trouble.length?`<ul class="list trouble">${trouble.map(i=>`<li><span class="wd">${esc(DATA[i].w)}</span><span class="small muted" style="flex:1;min-width:0">${esc(DATA[i].s[0].d)}</span><span class="n">${rec(i).w}×</span></li>`).join("")}</ul>`:`<p class="small muted">No missed words yet.</p>`}
     <p class="note">${DEMO?"Demo mode: progress is saved on this device only.":USER.guest?`Trying without an account: progress is saved on this device only. <button class="linkbtn" data-signin>Save with email</button>`:syncMode==="synced"?"Progress is saved to your account and syncs across devices.":"Offline: progress is saved on this device and will sync when you reconnect."}</p>
-    ${HABIT.hide?`<p class="small" style="margin:8px 0 0"><button class="linkbtn" data-habit-show>Add to Home Screen and set a daily reminder</button></p>`:""}
     <details class="lic"><summary>Sources and licenses</summary>
     <p>Example sentences and learner definitions are original. Word list adapted in part from the New Academic Word List by Browne, C., Culligan, B., and Phillips, J., licensed under CC BY-SA 4.0. Word frequency from wordfreq (CC BY-SA 4.0).</p>
     <p>Definitions were written with reference to WordNet: WordNet 3.0 Copyright 2006 by Princeton University. All rights reserved. Permission to use, copy, modify and distribute this software and database and its documentation for any purpose and without fee or royalty is hereby granted, provided that you agree to comply with the following copyright notice and statements, including the disclaimer, and that the same appear on ALL copies of the software, database and documentation, including modifications that you make for internal use or for distribution. THIS SOFTWARE AND DATABASE IS PROVIDED "AS IS" AND PRINCETON UNIVERSITY MAKES NO REPRESENTATIONS OR WARRANTIES, EXPRESS OR IMPLIED. BY WAY OF EXAMPLE, BUT NOT LIMITATION, PRINCETON UNIVERSITY MAKES NO REPRESENTATIONS OR WARRANTIES OF MERCHANTABILITY OR FITNESS FOR ANY PARTICULAR PURPOSE OR THAT THE USE OF THE LICENSED SOFTWARE, DATABASE OR DOCUMENTATION WILL NOT INFRINGE ANY THIRD PARTY PATENTS, COPYRIGHTS, TRADEMARKS OR OTHER RIGHTS. The name of Princeton University or Princeton may not be used in advertising or publicity pertaining to distribution of the software and/or database. Title to copyright in this software, database and any associated documentation shall at all times remain with Princeton University and LICENSEE agrees to preserve same.</p>
@@ -870,7 +870,7 @@ app.addEventListener("change",e=>{if(e.target.id==="remTime"){HABIT.time=e.targe
 app.addEventListener("click",e=>{
   if(e.target.closest("[data-install]")){if(installEvt){const ev=installEvt;installEvt=null;ev.prompt();Promise.resolve(ev.userChoice).finally(()=>{if(onToday())render()})}return}
   if(e.target.closest("[data-habit-hide]")){HABIT.hide=true;saveHabit();render();return}
-  if(e.target.closest("[data-habit-show]")){HABIT.hide=false;saveHabit();tab="today";render();window.scrollTo(0,0);return}
+  if(e.target.closest("[data-habit-show]")){HABIT.hide=false;saveHabit();render();return}
   if(e.target.closest("[data-ics],[data-gcal]")){HABIT.set=true;saveHabit();setTimeout(()=>{if(onToday())render()},600);return}   // the links themselves open the calendar
   const si=e.target.closest("[data-signin]");if(si){S=null;loginOpen=true;render();window.scrollTo(0,0);return}const pu=e.target.closest("[data-parent-unlock]");if(pu){tab="parent";render();window.scrollTo(0,0);return}const bu=e.target.closest("[data-buy]");if(bu){buy(bu.dataset.buy);return}const s=e.target.closest("[data-say]");if(s){e.stopPropagation();speak(s.dataset.say);return}const m=e.target.closest("[data-morebtn]");if(m){e.stopPropagation();moreExamples(+m.dataset.morebtn,m.closest(".more"))}});
 render();
