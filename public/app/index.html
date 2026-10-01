@@ -337,6 +337,10 @@ async function checkGuarantee(){
   try{await flush();await sb.functions.invoke("guarantee",{body:{}});await loadEnt()}catch(e){}
 }
 /* Paddle checkout */
+const PROMO_KEY=LS+":promo";
+let PROMO=null;try{const q=new URLSearchParams(location.search).get("promo");
+  if(q&&/^[A-Za-z0-9_-]{3,32}$/.test(q)){PROMO=q.toUpperCase();localStorage.setItem(PROMO_KEY,PROMO);history.replaceState(null,"",location.pathname+location.hash)}
+  else PROMO=localStorage.getItem(PROMO_KEY)}catch(e){}
 let paddleLoading=null;
 function loadPaddle(){
   if(!CFG.paddleClientToken)return Promise.resolve(false);
@@ -356,7 +360,7 @@ async function buy(kind){
     ENT=e;localStorage.setItem(LS+":demo-ent",JSON.stringify(ENT));render();return}
   const ok=await loadPaddle();if(!ok){alert("Checkout couldn't open. Please try again in a moment.");return}
   Paddle.Checkout.open({items:[{priceId:kind==="program"?CFG.priceProgram:CFG.priceExtension,quantity:1}],
-    customer:{email:USER.email},customData:{user_id:USER.id,kind},
+    customer:{email:USER.email},customData:{user_id:USER.id,kind},...(PROMO?{discountCode:PROMO}:{}),
     settings:{displayMode:"overlay",theme:"light",locale:(navigator.language||"en").toLowerCase().startsWith("ko")?"ko":"en"}});
 }
 async function afterPurchase(){for(let k=0;k<12;k++){await new Promise(r=>setTimeout(r,2500));const was=ENT&&ENT.expires_at;await loadEnt();if(ENT&&ENT.expires_at&&ENT.expires_at!==was)break}render()}
@@ -837,6 +841,7 @@ function accountHTML(){
   return `<section class="acct"><h2 style="margin-top:0">Plan</h2><div class="pstatus on">${status}</div>
     ${g?`<p class="small muted" style="margin:10px 0 0"><b>44-day promise:</b> ${gtxt}</p>`:""}
     <div class="actions" style="flex-wrap:wrap">${actions}</div>
+    ${PROMO&&!DEMO?`<p class="small" style="margin:10px 0 0">Promo code <b>${esc(PROMO)}</b> will be applied at checkout. <button class="linkbtn" data-promo-clear>Remove</button></p>`:""}
     <p class="small muted" style="margin:12px 0 0"><b>Refunds:</b> within 7 days of purchase if units beyond the free trial (Unit 4 and up) haven't been used. Email <a href="mailto:admin@weenu.com?subject=A's%20SAT%20Words%20refund">admin@weenu.com</a> from your account email. <a href="/legal/refund.html" target="_blank" rel="noopener">Refund policy</a></p>
     ${DEMO?`<p class="small muted" style="margin-top:8px">Demo mode: purchases are simulated on this device.</p>`:""}</section>`}
 function renderParent(){
@@ -899,6 +904,7 @@ document.querySelectorAll("nav button").forEach(b=>b.onclick=()=>{tab=b.dataset.
 app.addEventListener("change",e=>{if(e.target.id==="remTime"){HABIT.time=e.target.value||"20:00";HABIT.set=false;saveHabit();render()}});
 app.addEventListener("click",e=>{
   if(e.target.closest("[data-install]")){if(installEvt){const ev=installEvt;installEvt=null;ev.prompt();Promise.resolve(ev.userChoice).finally(()=>{if(onToday())render()})}return}
+  if(e.target.closest("[data-promo-clear]")){PROMO=null;try{localStorage.removeItem(PROMO_KEY)}catch(x){}render();return}
   if(e.target.closest("[data-habit-hide]")){HABIT.hide=true;saveHabit();render();return}
   if(e.target.closest("[data-habit-show]")){HABIT.hide=false;saveHabit();render();return}
   if(e.target.closest("[data-ics],[data-gcal]")){HABIT.set=true;saveHabit();setTimeout(()=>{if(onToday())render()},600);return}   // the links themselves open the calendar
