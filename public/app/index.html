@@ -82,6 +82,7 @@ h2{font-size:15px;font-weight:700;margin:32px 0 12px}
 .ex b{font-weight:700}
 .sense+.sense{margin-top:18px;padding-top:18px;border-top:1px solid var(--rule)}
 .prompt{font-family:var(--serif);font-size:21px;line-height:1.5;margin:0}
+.prompt.sat{font-size:18px;line-height:1.6}
 .gap{display:inline-block;min-width:4.5em;border-bottom:2px solid var(--ink);height:1.1em;vertical-align:-2px}
 .opts{display:grid;gap:10px;margin-top:20px}
 .opt{text-align:left;border:1px solid var(--rule);background:var(--surface);color:var(--ink);border-radius:10px;padding:13px 14px;font-size:16px;cursor:pointer;display:flex;gap:12px;align-items:flex-start;min-height:48px;line-height:1.4}
@@ -204,6 +205,7 @@ body.nosample .morebtn{display:none}
 .acct{margin-top:22px}
 </style>
 <script src="/config.js"></script>
+<script src="/app/satq.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
 </head>
 <body>
@@ -412,6 +414,8 @@ function startBoss(track,n){
   unitOpen=null;tab="today";render();
 }
 function insertLater(item,gap){const at=Math.min(S.q.length,S.pos+1+gap);S.q.splice(at,0,item)}
+const SATBANK=window.SATQ||{};   // loaded from satq.js
+function satQ(i){return SATBANK[DATA[i].w]}
 function hasCloze(i){return DATA[i].x.some(x=>x.c&&x.src==="own")||aiX(i).length>0}
 function pickType(i,boss){
   const r=rec(i),b=r?r.b:0;let pool;
@@ -421,6 +425,7 @@ function pickType(i,boss){
   else if(b<=4)pool=["context","reverse","spell"];
   else pool=["spell","context"];
   if(!hasCloze(i))pool=pool.filter(x=>x!=="context"&&x!=="spell");
+  if(satQ(i)&&(boss||b>=1))pool=pool.filter(x=>x!=="context").concat(["sat","sat"]);  // passage questions replace one-sentence cloze
   if(!pool.length)pool=["meaning","reverse"];
   return pool[Math.floor(Math.random()*pool.length)];
 }
@@ -428,6 +433,7 @@ function distractors(i,n=3){const p=DATA[i].s[0].p;const pool=(BYPOS[p]&&BYPOS[p
   while(out.length<n){const k=pool[Math.floor(Math.random()*pool.length)];if(!set.has(k)){set.add(k);out.push(k)}}return out}
 function prepare(item){
   if(item.type)return;item.type=pickType(item.i,item.boss);const o=DATA[item.i];
+  if(item.type==="sat"){const qs=satQ(item.i);item.sq=qs[Math.floor(Math.random()*qs.length)];item.sk=0;item.sopts=shuffle([0,1,2,3]);return}
   if(item.type==="context"||item.type==="spell"){
     const pool=[...o.x.filter(x=>x.c&&x.src==="own"),...aiX(item.i)];
     item.sent=pool[Math.floor(Math.random()*pool.length)];item.sk=item.sent.s==null?0:item.sent.s;
@@ -504,7 +510,7 @@ function renderSession(){
     document.getElementById("know").onclick=()=>learnDone(true);
   }else{
     prepare(item);const s=o.s[item.sk]||o.s[0];
-    const labels={meaning:"What does it mean?",reverse:"Which word fits the definition?",context:"Words in context",spell:"Spell the word"};
+    const labels={meaning:"What does it mean?",reverse:"Which word fits the definition?",context:"Words in context",spell:"Spell the word",sat:"Digital SAT style"};
     let body="";const src=item.sent&&item.sent.src==="classic"?`<p class="small muted" style="margin:8px 0 0">From ${esc(item.sent.a)}</p>`:"";
     if(item.type==="meaning"){
       body=`<div class="row"><h2 class="head" style="margin:0">${esc(o.w)}<span class="pos">${s.p}.</span></h2>${spkBtn(o.w)}</div>
@@ -512,6 +518,10 @@ function renderSession(){
     }else if(item.type==="reverse"){
       body=`<p class="prompt"><span class="pos" style="margin:0 6px 0 0">${s.p}.</span>${esc(s.d)}</p>
       <div class="opts">${item.opts.map((k,n)=>`<button class="opt w" data-k="${k}"><span class="k">${n+1}</span><span>${esc(DATA[k].w)}</span></button>`).join("")}</div>`;
+    }else if(item.type==="sat"){
+      body=`<p class="prompt sat">${esc(item.sq.t).replace("______",'<span class="gap" aria-label="blank"></span>')}</p>
+      <p class="small muted" style="margin:12px 0 0">Which choice completes the text with the most logical and precise word or phrase?</p>
+      <div class="opts">${item.sopts.map((k,n)=>`<button class="opt w" data-k="${k}"><span class="k">${"ABCD"[n]}</span><span>${esc(item.sq.o[k])}</span></button>`).join("")}</div>`;
     }else if(item.type==="context"){
       const sent=esc(item.sent.e).replace(bnd(item.sent.c),'<span class="gap" aria-label="blank"></span>');
       body=`<p class="prompt">${sent}</p>${src}<p class="small muted" style="margin:10px 0 0">Choose the word that best completes the sentence.</p>
@@ -530,16 +540,18 @@ function renderSession(){
       document.getElementById("chk").onclick=check;
       inp.addEventListener("keydown",e=>{if(e.key==="Enter"){e.preventDefault();e.stopPropagation();check()}});
     }else{
+      const key=item.type==="sat"?0:item.i;   // sat options are indexed; option 0 is the answer
       app.querySelectorAll(".opt").forEach(b=>b.onclick=()=>{if(S.answered)return;const k=+b.dataset.k;
-        app.querySelectorAll(".opt").forEach(x=>{x.disabled=true;if(+x.dataset.k===item.i)x.classList.add("right")});
-        if(k!==item.i)b.classList.add("wrong");answer(item,k===item.i)});
+        app.querySelectorAll(".opt").forEach(x=>{x.disabled=true;if(+x.dataset.k===key)x.classList.add("right")});
+        if(k!==key)b.classList.add("wrong");answer(item,k===key)});
     }
   }
   document.getElementById("quit").onclick=endSession;
 }
 function answer(item,ok){
   S.answered=true;grade(item,ok);const o=DATA[item.i];
-  document.getElementById("fb").innerHTML=`<div class="verdict ${ok?"ok":"no"}">${ok?"Correct":(item.type==="meaning"?"Not quite. The correct meaning is highlighted.":"Not quite. The answer is “"+esc(o.w)+"”.")}</div>
+  document.getElementById("fb").innerHTML=`<div class="verdict ${ok?"ok":"no"}">${ok?"Correct":(item.type==="meaning"?"Not quite. The correct meaning is highlighted.":"Not quite. The answer is “"+esc(item.type==="sat"?item.sq.o[0]:o.w)+"”.")}</div>
+    ${item.type==="sat"?`<p class="small" style="margin:12px 0 0"><b>Why:</b> ${esc(item.sq.why)}</p>`:""}
     <div style="margin-top:18px"><div class="row" style="align-items:flex-start"><div class="head" style="font-size:30px"><span class="hl go">${esc(o.w)}</span></div>${spkBtn(o.w)}</div>${senseHTML(o,item.i,true)}${exBlock(item.i)}</div>
     <div class="actions"><button class="btn wide" id="nx">Next</button></div><p class="hint">Press Enter to continue</p>`;
   document.getElementById("nx").onclick=next;if(!ok)speak(o.w);
@@ -549,7 +561,7 @@ document.addEventListener("keydown",e=>{
   if(e.target.closest&&e.target.closest("[data-morebtn],[data-say],#know"))return;
   const item=S.q[S.pos];if(!item)return;
   if(e.key==="Enter"){if(item.t==="learn"){e.preventDefault();learnDone(false)}else if(S.answered){e.preventDefault();next()}return}
-  if(!S.answered&&/^[1-4]$/.test(e.key)){const b=app.querySelectorAll(".opt")[+e.key-1];if(b)b.click()}
+  if(!S.answered&&/^[1-4a-d]$/i.test(e.key)){const b=app.querySelectorAll(".opt")["1234".indexOf(e.key)>=0?+e.key-1:"abcd".indexOf(e.key.toLowerCase())];if(b)b.click()}
 });
 
 /* ---------- goals, ranks, badges ---------- */
