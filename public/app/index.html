@@ -199,6 +199,7 @@ body.nosample .morebtn{display:none}
 .paywall{margin-top:18px;padding:18px;border:1px solid var(--ink);border-radius:14px;background:var(--surface)}
 .paywall b{font-family:var(--serif);font-size:20px}.paywall p{margin:6px 0 0;color:var(--muted)}
 .trial{margin-top:14px;padding:10px 14px;border-radius:10px;background:var(--surface);border:1px solid var(--rule);font-size:14px}
+.linkbtn{background:none;border:0;padding:0;color:var(--accent);font:inherit;font-weight:700;text-decoration:underline;text-underline-offset:2px;cursor:pointer}
 .promise{margin-top:14px;padding:14px 16px;border-radius:12px;background:var(--surface);border:1px solid var(--rule)}
 .acct{margin-top:22px}
 </style>
@@ -259,7 +260,7 @@ const FREE_WORDS=30, PROGRAM_DAYS=90, PROMISE_DAYS=44, PROMISE_STUDY_DAYS=30, EX
 let sb=null,DB=null,ENT=null,dirty=false,writing=false,timer=null;
 function save(){state.updatedAt=Date.now();saveLocal();dirty=true;clearTimeout(timer);timer=setTimeout(flush,2000)}
 async function flush(){
-  clearTimeout(timer);if(!sb||!USER||!dirty||writing)return;writing=true;dirty=false;
+  clearTimeout(timer);if(!sb||!USER||USER.guest||!dirty||writing)return;writing=true;dirty=false;
   try{const {error}=await sb.from("progress").upsert({user_id:USER.id,state,updated_at:new Date().toISOString()});
     if(error)throw error;syncMode="synced"}catch(e){dirty=true;syncMode="local"}
   writing=false;if(dirty)timer=setTimeout(flush,5000);
@@ -318,13 +319,27 @@ async function buy(kind){
 }
 async function afterPurchase(){for(let k=0;k<12;k++){await new Promise(r=>setTimeout(r,2500));const was=ENT&&ENT.expires_at;await loadEnt();if(ENT&&ENT.expires_at&&ENT.expires_at!==was)break}render()}
 /* auth + boot */
-async function boot(u){USER=u;state=loadLocal();if(sb)await Promise.all([loadRemote(),loadEnt()]);else await loadEnt();await checkGuarantee();READY=true;render()}
+// Guest: try Units 1-3 without an account. Progress stays on this device until the parent signs in.
+const GUEST={id:"guest",guest:true};
+let loginOpen=false;
+function adoptGuest(){ // merge guest progress into the signed-in account, never overwriting what the account already has
+  const k=LS+":guest";let g;try{g=JSON.parse(localStorage.getItem(k))}catch(e){}
+  if(!g||!g.srs)return;g=norm(g);let n=0;
+  for(const w in g.srs)if(!state.srs[w]){state.srs[w]=g.srs[w];n++}
+  for(const d in g.log)if(!state.log[d]){state.log[d]=g.log[d];n++}
+  for(const u in g.units)if(!state.units[u]){state.units[u]=g.units[u];n++}
+  if(n)save();try{localStorage.removeItem(k)}catch(e){}
+}
+async function boot(u){USER=u;state=loadLocal();loginOpen=false;
+  if(u.guest){ENT=null;READY=true;render();return}
+  if(sb)await Promise.all([loadRemote(),loadEnt()]);else await loadEnt();
+  adoptGuest();await checkGuarantee();READY=true;render()}
 (async()=>{
   if(DEMO){await boot({id:"demo",email:"demo@example.com"});return}
   sb=window.supabase.createClient(CFG.supabaseUrl,CFG.supabaseAnonKey);DB=sb;
-  sb.auth.onAuthStateChange((ev,sess)=>{if(sess&&(!USER||USER.id!==sess.user.id))boot(sess.user);if(ev==="SIGNED_OUT"){USER=null;state=blank();ENT=null;PARENT=false;render()}});
+  sb.auth.onAuthStateChange((ev,sess)=>{if(sess&&(!USER||USER.id!==sess.user.id))boot(sess.user);if(ev==="SIGNED_OUT"){PARENT=false;tab="today";boot(GUEST)}});
   const {data:{session}}=await sb.auth.getSession();
-  if(session)await boot(session.user);else{READY=true;render()}
+  await boot(session?session.user:GUEST);
 })();
 
 /* ---------- derived ---------- */
@@ -465,7 +480,10 @@ function renderSessionEnd(){
   else{const pct=S.first?Math.round(S.firstOk/S.first*100):0;
     head=`<h1>Session complete</h1><p class="muted" style="margin:0">${S.firstOk} of ${S.first} words right on the first try.</p>
     <div class="figs"><div class="fig"><b>+${gained}</b><span>words added</span></div><div class="fig"><b>${pct}%</b><span>first-try accuracy</span></div></div>`}
-  app.innerHTML=head+journeyHTML()+
+  const saveCard=USER.guest?`<div class="paywall"><b>Keep this progress</b><p>You're trying A's SAT Words without an account, so these words are saved on this device only. Add a parent's email to keep them, pick up on any device and see the parent report.</p>
+    <div class="actions"><button class="btn" data-signin style="flex:1">Save with email</button></div>
+    <p class="small muted" style="margin:10px 0 0">Free. No password. You can keep studying Units 1 to 3 either way.</p></div>`:"";
+  app.innerHTML=head+saveCard+journeyHTML()+
     (fresh.length?`<h2>New badge${fresh.length>1?"s":""}</h2><div class="badges">${BADGES.filter(b=>fresh.includes(b.id)).map(b=>`<div class="badge on new"><i aria-hidden="true">${b.g}</i><b>${b.n}</b>${b.d}</div>`).join("")}</div>`:"")+
     `<button class="btn wide" id="home" style="margin-top:24px">Back to today</button>`;
   document.getElementById("home").onclick=endSession;
@@ -681,7 +699,7 @@ function progressHTML(ro){
     <h2>Last 4 weeks</h2><div class="heat" aria-label="Daily activity for the last 28 days">${cells}</div>
     <h2>Often missed</h2>
     ${trouble.length?`<ul class="list trouble">${trouble.map(i=>`<li><span class="wd">${esc(DATA[i].w)}</span><span class="small muted" style="flex:1;min-width:0">${esc(DATA[i].s[0].d)}</span><span class="n">${rec(i).w}×</span></li>`).join("")}</ul>`:`<p class="small muted">No missed words yet.</p>`}
-    <p class="note">${DEMO?"Demo mode: progress is saved on this device only.":syncMode==="synced"?"Progress is saved to your account and syncs across devices.":"Offline: progress is saved on this device and will sync when you reconnect."}</p>
+    <p class="note">${DEMO?"Demo mode: progress is saved on this device only.":USER.guest?`Trying without an account: progress is saved on this device only. <button class="linkbtn" data-signin>Save with email</button>`:syncMode==="synced"?"Progress is saved to your account and syncs across devices.":"Offline: progress is saved on this device and will sync when you reconnect."}</p>
     <details class="lic"><summary>Sources and licenses</summary>
     <p>Example sentences and learner definitions are original. Word list adapted in part from the New Academic Word List by Browne, C., Culligan, B., and Phillips, J., licensed under CC BY-SA 4.0. Word frequency from wordfreq (CC BY-SA 4.0).</p>
     <p>Definitions were written with reference to WordNet: WordNet 3.0 Copyright 2006 by Princeton University. All rights reserved. Permission to use, copy, modify and distribute this software and database and its documentation for any purpose and without fee or royalty is hereby granted, provided that you agree to comply with the following copyright notice and statements, including the disclaimer, and that the same appear on ALL copies of the software, database and documentation, including modifications that you make for internal use or for distribution. THIS SOFTWARE AND DATABASE IS PROVIDED "AS IS" AND PRINCETON UNIVERSITY MAKES NO REPRESENTATIONS OR WARRANTIES, EXPRESS OR IMPLIED. BY WAY OF EXAMPLE, BUT NOT LIMITATION, PRINCETON UNIVERSITY MAKES NO REPRESENTATIONS OR WARRANTIES OF MERCHANTABILITY OR FITNESS FOR ANY PARTICULAR PURPOSE OR THAT THE USE OF THE LICENSED SOFTWARE, DATABASE OR DOCUMENTATION WILL NOT INFRINGE ANY THIRD PARTY PATENTS, COPYRIGHTS, TRADEMARKS OR OTHER RIGHTS. The name of Princeton University or Princeton may not be used in advertising or publicity pertaining to distribution of the software and/or database. Title to copyright in this software, database and any associated documentation shall at all times remain with Princeton University and LICENSEE agrees to preserve same.</p>
@@ -734,10 +752,13 @@ function renderParent(){
   const so=document.getElementById("signOut");if(so)so.onclick=async()=>{await flush();await sb.auth.signOut()};
 }
 function renderLogin(){
-  app.innerHTML=`<h1>Sign in</h1>
-    <p class="muted" style="margin:0 0 18px">Parents, use your own email. Your child studies on the same account, and your report stays behind a parent PIN.</p>
+  const g=USER&&USER.guest,tried=g&&Object.keys(state.srs).length>0;
+  app.innerHTML=`<h1>${g?"Save progress and continue":"Sign in"}</h1>
+    <p class="muted" style="margin:0 0 18px">${tried?"Words studied on this device move to your account when you sign in. ":""}Parents, use your own email. Your child studies on the same account, and your report stays behind a parent PIN.</p>
     <div class="spell" style="max-width:420px"><input id="em" type="email" autocomplete="email" placeholder="you@example.com" aria-label="Email"><button class="btn" id="emGo">Send link</button></div>
-    <p class="small muted" id="emMsg" style="margin-top:10px">We'll email you a one-time sign-in link. No password needed.</p>`;
+    <p class="small muted" id="emMsg" style="margin-top:10px">We'll email you a one-time sign-in link. No password needed.</p>
+    ${g?`<p style="margin-top:22px"><button class="btn ghost" id="keepTrying">Keep trying without an account</button></p>`:""}`;
+  const kt=document.getElementById("keepTrying");if(kt)kt.onclick=()=>{loginOpen=false;if(tab==="parent")tab="today";render();window.scrollTo(0,0)};
   const go=async()=>{const v=document.getElementById("em").value.trim();if(!/^\S+@\S+\.\S+$/.test(v))return;
     const {error}=await sb.auth.signInWithOtp({email:v,options:{emailRedirectTo:location.origin+location.pathname}});
     document.getElementById("emMsg").textContent=error?"Couldn't send the link. Check the address and try again.":"Check your inbox and open the link on this device."};
@@ -746,12 +767,12 @@ function renderLogin(){
 function render(){
   document.querySelectorAll("nav button").forEach(b=>b.setAttribute("aria-current",b.dataset.tab===tab?"page":"false"));
   if(!READY){app.innerHTML=`<p class="muted" style="margin-top:28px">Loading…</p>`;return}
-  if(!USER){renderLogin();return}
+  if(!USER||(USER.guest&&(loginOpen||tab==="parent"))){renderLogin();return}
   if(tab==="parent"){if(S){S=null}PARENT?renderParent():renderParentGate();return}
   if(tab==="today"&&S)renderSession();else if(tab==="today")renderToday();else if(tab==="words")renderWords();else renderProgress();
 }
-document.querySelectorAll("nav button").forEach(b=>b.onclick=()=>{tab=b.dataset.tab;render();window.scrollTo(0,0)});
-app.addEventListener("click",e=>{const pu=e.target.closest("[data-parent-unlock]");if(pu){tab="parent";render();window.scrollTo(0,0);return}const bu=e.target.closest("[data-buy]");if(bu){buy(bu.dataset.buy);return}const s=e.target.closest("[data-say]");if(s){e.stopPropagation();speak(s.dataset.say);return}const m=e.target.closest("[data-morebtn]");if(m){e.stopPropagation();moreExamples(+m.dataset.morebtn,m.closest(".more"))}});
+document.querySelectorAll("nav button").forEach(b=>b.onclick=()=>{tab=b.dataset.tab;loginOpen=false;render();window.scrollTo(0,0)});
+app.addEventListener("click",e=>{const si=e.target.closest("[data-signin]");if(si){S=null;loginOpen=true;render();window.scrollTo(0,0);return}const pu=e.target.closest("[data-parent-unlock]");if(pu){tab="parent";render();window.scrollTo(0,0);return}const bu=e.target.closest("[data-buy]");if(bu){buy(bu.dataset.buy);return}const s=e.target.closest("[data-say]");if(s){e.stopPropagation();speak(s.dataset.say);return}const m=e.target.closest("[data-morebtn]");if(m){e.stopPropagation();moreExamples(+m.dataset.morebtn,m.closest(".more"))}});
 render();
 
 </script>
