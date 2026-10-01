@@ -222,6 +222,12 @@ body.nosample .morebtn{display:none}
 .paywall{margin-top:18px;padding:18px;border:1px solid var(--ink);border-radius:14px;background:var(--surface)}
 .paywall b{font-family:var(--serif);font-size:20px}.paywall p{margin:6px 0 0;color:var(--muted)}
 .trial{margin-top:14px;padding:10px 14px;border-radius:10px;background:var(--surface);border:1px solid var(--rule);font-size:14px}
+.habit{margin-top:22px;padding:18px;border:1px solid var(--rule);border-radius:14px;background:var(--surface)}
+.hrow{display:flex;justify-content:space-between;align-items:center;gap:12px 16px;flex-wrap:wrap;padding-top:14px;margin-top:14px;border-top:1px solid var(--rule)}
+.hrow>div:first-child{flex:1 1 200px;min-width:0}.hrow b{display:block}.hrow>div:first-child span{font-size:14px;color:var(--muted)}
+.hctl{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.hctl input{font:inherit;padding:9px 10px;border:1px solid var(--rule);border-radius:10px;background:var(--bg);color:var(--ink);min-height:44px}
+.habit .btn{min-height:44px;padding:9px 14px;font-size:15px;text-decoration:none}
 .linkbtn{background:none;border:0;padding:0;color:var(--accent);font:inherit;font-weight:700;text-decoration:underline;text-underline-offset:2px;cursor:pointer}
 .promise{margin-top:14px;padding:14px 16px;border-radius:12px;background:var(--surface);border:1px solid var(--rule)}
 .acct{margin-top:22px}
@@ -654,6 +660,41 @@ function unitSheet(){
     <p class="small muted" style="margin:6px 0 12px">${st.cleared?"Cleared with "+st.stars+" star"+(st.stars>1?"s":"")+". Replay the boss round anytime for three stars.":st.ready?"All 10 words learned. Beat the boss round to clear this unit: 8 of 10 earns a star, 10 of 10 earns three.":"Already know these words? Take the test-out. Every word you answer correctly is marked as known, so you skip it. Score 8 or more to clear the unit."}</p>
     <div class="uwords">${st.words.map(i=>`<span class="uw ${status(i)}">${esc(DATA[i].w)}</span>`).join("")}</div>
     <button class="btn wide" id="bossGo" style="margin-top:16px">Start ${mode.toLowerCase()} (10 questions)</button></div>`}
+/* ---------- home screen + daily reminder (kept on this device, not synced) ---------- */
+const HKEY=LS+":habit";
+let HABIT={hide:false,time:"20:00",set:false};try{Object.assign(HABIT,JSON.parse(localStorage.getItem(HKEY))||{})}catch(e){}
+function saveHabit(){try{localStorage.setItem(HKEY,JSON.stringify(HABIT))}catch(e){}}
+let installEvt=null;
+const onToday=()=>READY&&tab==="today"&&!S;
+window.addEventListener("beforeinstallprompt",e=>{e.preventDefault();installEvt=e;if(onToday())render()});
+window.addEventListener("appinstalled",()=>{installEvt=null;if(onToday())render()});
+const isStandalone=()=>matchMedia("(display-mode: standalone)").matches||navigator.standalone===true;
+const isIOS=()=>/iPad|iPhone|iPod/.test(navigator.userAgent)||(navigator.platform==="MacIntel"&&navigator.maxTouchPoints>1);
+function fmtTime(t){const [h,m]=t.split(":").map(Number);return new Date(2000,0,1,h,m).toLocaleTimeString("en-US",{hour:"numeric",minute:"2-digit"})}
+function reminderParts(){ // a 15-minute event starting today at the chosen local time
+  const [h,m]=HABIT.time.split(":").map(Number),p=n=>String(n).padStart(2,"0"),d=new Date();
+  const a=new Date(d.getFullYear(),d.getMonth(),d.getDate(),h,m),b=new Date(a.getTime()+15*6e4);
+  const f=x=>x.getFullYear()+p(x.getMonth()+1)+p(x.getDate())+"T"+p(x.getHours())+p(x.getMinutes())+"00";
+  return{start:f(a),end:f(b),url:location.origin+"/app/",title:"A's SAT Words: 15 minutes"}}
+function reminderICS(){const r=reminderParts(),now=new Date().toISOString().replace(/[-:]/g,"").replace(/\.\d+/,"");
+  return ["BEGIN:VCALENDAR","VERSION:2.0","PRODID:-//A's SAT Words//Reminder//EN","BEGIN:VEVENT","UID:as-sat-"+Date.now()+"@sat.weenu.com","DTSTAMP:"+now,
+    "DTSTART:"+r.start,"DTEND:"+r.end,"RRULE:FREQ=DAILY;COUNT=90","SUMMARY:"+r.title,"DESCRIPTION:Today's words are ready. "+r.url,"URL:"+r.url,
+    "BEGIN:VALARM","ACTION:DISPLAY","DESCRIPTION:Time for today's SAT words","TRIGGER:PT0M","END:VALARM","END:VEVENT","END:VCALENDAR"].join("\r\n")}
+function reminderGoogle(){const r=reminderParts();return "https://calendar.google.com/calendar/render?action=TEMPLATE&text="+encodeURIComponent(r.title)+"&dates="+r.start+"/"+r.end+
+  "&recur="+encodeURIComponent("RRULE:FREQ=DAILY;COUNT=90")+"&details="+encodeURIComponent("Today's words are ready. "+r.url)}
+function downloadICS(){const ics=reminderICS();
+  if(isIOS()){location.href="data:text/calendar;charset=utf-8,"+encodeURIComponent(ics);return}   // iOS opens its Add to Calendar sheet
+  const a=document.createElement("a");a.href=URL.createObjectURL(new Blob([ics],{type:"text/calendar"}));a.download="as-sat-words-reminder.ics";document.body.appendChild(a);a.click();a.remove()}
+function habitHTML(){
+  if(HABIT.hide)return "";
+  const inst=isStandalone()?`<p class="small muted" style="margin:0">Done. You opened this from your home screen.</p>`
+    :installEvt?`<button class="btn ghost" data-install>Add to Home Screen</button>`
+    :isIOS()?`<p class="small muted" style="margin:0">In Safari, tap <b>Share</b>, then <b>Add to Home Screen</b>.</p>`
+    :`<p class="small muted" style="margin:0">Open the browser menu, then <b>Add to Home screen</b> or <b>Install app</b>.</p>`;
+  return `<section class="habit"><div class="row"><h2 style="margin:0">Make it a habit</h2><button class="linkbtn" data-habit-hide>Hide</button></div>
+    <div class="hrow"><div><b>Home screen</b><span>Open A's SAT Words with one tap, like an app.</span></div>${inst}</div>
+    <div class="hrow"><div><b>Daily reminder</b><span>${HABIT.set?`Added to your calendar for ${fmtTime(HABIT.time)}. Change the time and add it again to move it.`:"A calendar alert at the time you choose, every day for 90 days."}</span></div>
+      <div class="hctl"><input type="time" id="remTime" value="${HABIT.time}" aria-label="Reminder time"><a class="btn ghost" data-gcal href="${esc(reminderGoogle())}" target="_blank" rel="noopener">Google Calendar</a><button class="btn ghost" data-ics>Apple / other</button></div></div></section>`}
 function renderToday(){
   const track=state.settings.track,tr=TRACKS[track];
   const due=dueList().length,nw=newList().length,L=tl();
@@ -675,6 +716,7 @@ function renderToday(){
       <p class="small muted" style="margin:0 0 16px">${remain===0?"You finished today's plan. Clear a unit or learn 5 bonus words to pull your finish date closer.":`${done} of ${total} done. ${nw} new word${nw===1?"":"s"} from Unit ${cu+1} and ${Math.min(due,40)} review${due===1?"":"s"} left.`}</p>
       ${remain===0?(trialDone()?"":`<button class="btn ghost wide" id="more">Learn 5 bonus words</button>`):`<button class="btn wide" id="go">${done?"Continue":"Start today's session"}</button>`}
     </section>
+    ${habitHTML()}
     <h2 style="margin-bottom:4px">Units</h2>
     <p class="small muted" style="margin:0">10 words per unit. Tap a unit to take its boss round or test out of words you already know.</p>
     ${unitMapHTML()}
@@ -734,6 +776,7 @@ function progressHTML(ro){
     <h2>Often missed</h2>
     ${trouble.length?`<ul class="list trouble">${trouble.map(i=>`<li><span class="wd">${esc(DATA[i].w)}</span><span class="small muted" style="flex:1;min-width:0">${esc(DATA[i].s[0].d)}</span><span class="n">${rec(i).w}×</span></li>`).join("")}</ul>`:`<p class="small muted">No missed words yet.</p>`}
     <p class="note">${DEMO?"Demo mode: progress is saved on this device only.":USER.guest?`Trying without an account: progress is saved on this device only. <button class="linkbtn" data-signin>Save with email</button>`:syncMode==="synced"?"Progress is saved to your account and syncs across devices.":"Offline: progress is saved on this device and will sync when you reconnect."}</p>
+    ${HABIT.hide?`<p class="small" style="margin:8px 0 0"><button class="linkbtn" data-habit-show>Add to Home Screen and set a daily reminder</button></p>`:""}
     <details class="lic"><summary>Sources and licenses</summary>
     <p>Example sentences and learner definitions are original. Word list adapted in part from the New Academic Word List by Browne, C., Culligan, B., and Phillips, J., licensed under CC BY-SA 4.0. Word frequency from wordfreq (CC BY-SA 4.0).</p>
     <p>Definitions were written with reference to WordNet: WordNet 3.0 Copyright 2006 by Princeton University. All rights reserved. Permission to use, copy, modify and distribute this software and database and its documentation for any purpose and without fee or royalty is hereby granted, provided that you agree to comply with the following copyright notice and statements, including the disclaimer, and that the same appear on ALL copies of the software, database and documentation, including modifications that you make for internal use or for distribution. THIS SOFTWARE AND DATABASE IS PROVIDED "AS IS" AND PRINCETON UNIVERSITY MAKES NO REPRESENTATIONS OR WARRANTIES, EXPRESS OR IMPLIED. BY WAY OF EXAMPLE, BUT NOT LIMITATION, PRINCETON UNIVERSITY MAKES NO REPRESENTATIONS OR WARRANTIES OF MERCHANTABILITY OR FITNESS FOR ANY PARTICULAR PURPOSE OR THAT THE USE OF THE LICENSED SOFTWARE, DATABASE OR DOCUMENTATION WILL NOT INFRINGE ANY THIRD PARTY PATENTS, COPYRIGHTS, TRADEMARKS OR OTHER RIGHTS. The name of Princeton University or Princeton may not be used in advertising or publicity pertaining to distribution of the software and/or database. Title to copyright in this software, database and any associated documentation shall at all times remain with Princeton University and LICENSEE agrees to preserve same.</p>
@@ -807,7 +850,14 @@ function render(){
   if(tab==="today"&&S)renderSession();else if(tab==="today")renderToday();else if(tab==="words")renderWords();else renderProgress();
 }
 document.querySelectorAll("nav button").forEach(b=>b.onclick=()=>{tab=b.dataset.tab;loginOpen=false;render();window.scrollTo(0,0)});
-app.addEventListener("click",e=>{const si=e.target.closest("[data-signin]");if(si){S=null;loginOpen=true;render();window.scrollTo(0,0);return}const pu=e.target.closest("[data-parent-unlock]");if(pu){tab="parent";render();window.scrollTo(0,0);return}const bu=e.target.closest("[data-buy]");if(bu){buy(bu.dataset.buy);return}const s=e.target.closest("[data-say]");if(s){e.stopPropagation();speak(s.dataset.say);return}const m=e.target.closest("[data-morebtn]");if(m){e.stopPropagation();moreExamples(+m.dataset.morebtn,m.closest(".more"))}});
+app.addEventListener("change",e=>{if(e.target.id==="remTime"){HABIT.time=e.target.value||"20:00";HABIT.set=false;saveHabit();render()}});
+app.addEventListener("click",e=>{
+  if(e.target.closest("[data-install]")){if(installEvt){const ev=installEvt;installEvt=null;ev.prompt();Promise.resolve(ev.userChoice).finally(()=>{if(onToday())render()})}return}
+  if(e.target.closest("[data-habit-hide]")){HABIT.hide=true;saveHabit();render();return}
+  if(e.target.closest("[data-habit-show]")){HABIT.hide=false;saveHabit();tab="today";render();window.scrollTo(0,0);return}
+  if(e.target.closest("[data-ics]")){downloadICS();HABIT.set=true;saveHabit();render();return}
+  if(e.target.closest("[data-gcal]")){HABIT.set=true;saveHabit();setTimeout(()=>{if(onToday())render()},400);return}   // the link itself opens Google Calendar
+  const si=e.target.closest("[data-signin]");if(si){S=null;loginOpen=true;render();window.scrollTo(0,0);return}const pu=e.target.closest("[data-parent-unlock]");if(pu){tab="parent";render();window.scrollTo(0,0);return}const bu=e.target.closest("[data-buy]");if(bu){buy(bu.dataset.buy);return}const s=e.target.closest("[data-say]");if(s){e.stopPropagation();speak(s.dataset.say);return}const m=e.target.closest("[data-morebtn]");if(m){e.stopPropagation();moreExamples(+m.dataset.morebtn,m.closest(".more"))}});
 render();
 
 </script>
