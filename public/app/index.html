@@ -224,7 +224,12 @@ body.nosample .morebtn{display:none}
 .trial{margin-top:14px;padding:10px 14px;border-radius:10px;background:var(--surface);border:1px solid var(--rule);font-size:14px}
 .habit{margin-top:22px;padding:18px;border:1px solid var(--rule);border-radius:14px;background:var(--surface)}
 .hrow{display:flex;justify-content:space-between;align-items:center;gap:12px 16px;flex-wrap:wrap;padding-top:14px;margin-top:14px;border-top:1px solid var(--rule)}
-.hrow>div:first-child{flex:1 1 200px;min-width:0}.hrow b{display:block}.hrow>div:first-child span{font-size:14px;color:var(--muted)}
+.hrow>div:first-child{flex:1 1 200px;min-width:0}.hrow>div:first-child>b{display:block}.hrow>div:first-child>span{font-size:14px;color:var(--muted)}
+.guide{list-style:none;margin:0;padding:0;display:grid;gap:10px;flex:1 1 100%}
+.guide li{display:flex;gap:12px;align-items:center;padding:10px 12px;border:1px solid var(--rule);border-radius:12px;background:var(--bg)}
+.guide .gi{flex:0 0 40px;width:40px;height:40px;display:grid;place-items:center;border-radius:10px;background:var(--surface);border:1px solid var(--rule);color:var(--accent);overflow:hidden}
+.guide .gi svg{width:24px;height:24px}.guide .gi img{display:block}
+.guide .gt{min-width:0}.guide .gt b{display:block;font-size:15px}.guide .gt span{display:block;font-size:13px;color:var(--muted);line-height:1.4}
 .hctl{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
 .hctl input{font:inherit;padding:9px 10px;border:1px solid var(--rule);border-radius:10px;background:var(--bg);color:var(--ink);min-height:44px}
 .habit .btn{min-height:44px;padding:9px 14px;font-size:15px;text-decoration:none}
@@ -676,25 +681,36 @@ function reminderParts(){ // a 15-minute event starting today at the chosen loca
   const a=new Date(d.getFullYear(),d.getMonth(),d.getDate(),h,m),b=new Date(a.getTime()+15*6e4);
   const f=x=>x.getFullYear()+p(x.getMonth()+1)+p(x.getDate())+"T"+p(x.getHours())+p(x.getMinutes())+"00";
   return{start:f(a),end:f(b),url:location.origin+"/app/",title:"A's SAT Words: 15 minutes"}}
-function reminderICS(){const r=reminderParts(),now=new Date().toISOString().replace(/[-:]/g,"").replace(/\.\d+/,"");
-  return ["BEGIN:VCALENDAR","VERSION:2.0","PRODID:-//A's SAT Words//Reminder//EN","BEGIN:VEVENT","UID:as-sat-"+Date.now()+"@sat.weenu.com","DTSTAMP:"+now,
-    "DTSTART:"+r.start,"DTEND:"+r.end,"RRULE:FREQ=DAILY;COUNT=90","SUMMARY:"+r.title,"DESCRIPTION:Today's words are ready. "+r.url,"URL:"+r.url,
-    "BEGIN:VALARM","ACTION:DISPLAY","DESCRIPTION:Time for today's SAT words","TRIGGER:PT0M","END:VALARM","END:VEVENT","END:VCALENDAR"].join("\r\n")}
+const REMIND_DAYS=PROMISE_DAYS;   // 44: the length of the plan
+function reminderFile(){const r=reminderParts();return "/reminder.ics?t="+HABIT.time.replace(":","")+"&d="+r.start.slice(0,8)}   // built by functions/reminder.ics.js
 function reminderGoogle(){const r=reminderParts();return "https://calendar.google.com/calendar/render?action=TEMPLATE&text="+encodeURIComponent(r.title)+"&dates="+r.start+"/"+r.end+
-  "&recur="+encodeURIComponent("RRULE:FREQ=DAILY;COUNT=90")+"&details="+encodeURIComponent("Today's words are ready. "+r.url)}
-function downloadICS(){const ics=reminderICS();
-  if(isIOS()){location.href="data:text/calendar;charset=utf-8,"+encodeURIComponent(ics);return}   // iOS opens its Add to Calendar sheet
-  const a=document.createElement("a");a.href=URL.createObjectURL(new Blob([ics],{type:"text/calendar"}));a.download="as-sat-words-reminder.ics";document.body.appendChild(a);a.click();a.remove()}
+  "&recur="+encodeURIComponent("RRULE:FREQ=DAILY;COUNT="+REMIND_DAYS)+"&details="+encodeURIComponent("Today's words are ready. "+r.url)+"&crm=AVAILABLE&trp=false"}
+/* picture guide for adding the app to the home screen when the browser has no install button */
+const IC={
+  share:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 15V3"/><path d="M8 7l4-4 4 4"/><path d="M8 11H6.5A1.5 1.5 0 0 0 5 12.5v7A1.5 1.5 0 0 0 6.5 21h11a1.5 1.5 0 0 0 1.5-1.5v-7a1.5 1.5 0 0 0-1.5-1.5H16"/></svg>',
+  plus:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="4" width="16" height="16" rx="3.5"/><path d="M12 8.5v7M8.5 12h7"/></svg>',
+  menu:'<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="12" cy="5" r="1.9"/><circle cx="12" cy="12" r="1.9"/><circle cx="12" cy="19" r="1.9"/></svg>',
+  app:'<img src="/icon-192.png" alt="" width="40" height="40">'};
+function installGuide(){
+  const ua=navigator.userAgent,ios=isIOS(),iosOther=ios&&/CriOS|FxiOS|EdgiOS/.test(ua);
+  const steps=ios?[
+    [IC.share,"Tap Share",iosOther?"The square with an arrow, at the right of the address bar.":"The square with an arrow, in the Safari toolbar. If you can't see it, tap ••• first."],
+    [IC.plus,"Tap Add to Home Screen","Scroll down the list to find it."],
+    [IC.app,"Tap Add","The A's SAT icon appears on your home screen."]]
+   :[
+    [IC.menu,"Tap the browser menu","⋮ at the top right in Chrome, ≡ at the bottom right in Samsung Internet."],
+    [IC.plus,"Tap Add to Home screen","In Samsung Internet: Add page to, then Home screen. Some browsers call it Install app."],
+    [IC.app,"Tap Add","The A's SAT icon appears on your home screen."]];
+  return `<ol class="guide">${steps.map((x,n)=>`<li><span class="gi">${x[0]}</span><span class="gt"><b>${n+1}. ${x[1]}</b><span>${x[2]}</span></span></li>`).join("")}</ol>`}
 function habitHTML(){
   if(HABIT.hide)return "";
   const inst=isStandalone()?`<p class="small muted" style="margin:0">Done. You opened this from your home screen.</p>`
     :installEvt?`<button class="btn ghost" data-install>Add to Home Screen</button>`
-    :isIOS()?`<p class="small muted" style="margin:0">In Safari, tap <b>Share</b>, then <b>Add to Home Screen</b>.</p>`
-    :`<p class="small muted" style="margin:0">Open the browser menu, then <b>Add to Home screen</b> or <b>Install app</b>.</p>`;
+    :installGuide();
   return `<section class="habit"><div class="row"><h2 style="margin:0">Make it a habit</h2><button class="linkbtn" data-habit-hide>Hide</button></div>
     <div class="hrow"><div><b>Home screen</b><span>Open A's SAT Words with one tap, like an app.</span></div>${inst}</div>
-    <div class="hrow"><div><b>Daily reminder</b><span>${HABIT.set?`Added to your calendar for ${fmtTime(HABIT.time)}. Change the time and add it again to move it.`:"A calendar alert at the time you choose, every day for 90 days."}</span></div>
-      <div class="hctl"><input type="time" id="remTime" value="${HABIT.time}" aria-label="Reminder time"><a class="btn ghost" data-gcal href="${esc(reminderGoogle())}" target="_blank" rel="noopener">Google Calendar</a><button class="btn ghost" data-ics>Apple / other</button></div></div></section>`}
+    <div class="hrow"><div><b>Daily reminder</b><span>${HABIT.set?`Added to your calendar for ${fmtTime(HABIT.time)}. Change the time and add it again to move it.`:`A calendar alert at the time you choose, every day for ${REMIND_DAYS} days.`}</span></div>
+      <div class="hctl"><input type="time" id="remTime" value="${HABIT.time}" aria-label="Reminder time"><a class="btn ghost" data-gcal href="${esc(reminderGoogle())}" target="_blank" rel="noopener">Google Calendar</a><a class="btn ghost" data-ics href="${esc(reminderFile())}">Apple / other</a></div></div></section>`}
 function renderToday(){
   const track=state.settings.track,tr=TRACKS[track];
   const due=dueList().length,nw=newList().length,L=tl();
@@ -855,8 +871,7 @@ app.addEventListener("click",e=>{
   if(e.target.closest("[data-install]")){if(installEvt){const ev=installEvt;installEvt=null;ev.prompt();Promise.resolve(ev.userChoice).finally(()=>{if(onToday())render()})}return}
   if(e.target.closest("[data-habit-hide]")){HABIT.hide=true;saveHabit();render();return}
   if(e.target.closest("[data-habit-show]")){HABIT.hide=false;saveHabit();tab="today";render();window.scrollTo(0,0);return}
-  if(e.target.closest("[data-ics]")){downloadICS();HABIT.set=true;saveHabit();render();return}
-  if(e.target.closest("[data-gcal]")){HABIT.set=true;saveHabit();setTimeout(()=>{if(onToday())render()},400);return}   // the link itself opens Google Calendar
+  if(e.target.closest("[data-ics],[data-gcal]")){HABIT.set=true;saveHabit();setTimeout(()=>{if(onToday())render()},600);return}   // the links themselves open the calendar
   const si=e.target.closest("[data-signin]");if(si){S=null;loginOpen=true;render();window.scrollTo(0,0);return}const pu=e.target.closest("[data-parent-unlock]");if(pu){tab="parent";render();window.scrollTo(0,0);return}const bu=e.target.closest("[data-buy]");if(bu){buy(bu.dataset.buy);return}const s=e.target.closest("[data-say]");if(s){e.stopPropagation();speak(s.dataset.say);return}const m=e.target.closest("[data-morebtn]");if(m){e.stopPropagation();moreExamples(+m.dataset.morebtn,m.closest(".more"))}});
 render();
 
