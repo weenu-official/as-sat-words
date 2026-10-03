@@ -307,19 +307,48 @@ const DEMO=!CFG.supabaseUrl;          // no backend configured: local demo with 
 const FREE_WORDS=30, PROGRAM_DAYS=90, PROMISE_DAYS=44, PROMISE_STUDY_DAYS=35, EXT_DAYS=30;
 let sb=null,DB=null,ENT=null,dirty=false,writing=false,timer=null;
 function save(){state.updatedAt=Date.now();saveLocal();dirty=true;clearTimeout(timer);timer=setTimeout(flush,2000)}
+/* Sync: progress from every device is merged word by word, never overwritten.
+   Each merge rule is idempotent, so merging the same data twice changes nothing. */
+function mergeState(a,b){
+  a=norm(a||{});b=norm(b||{});const newer=(b.updatedAt||0)>(a.updatedAt||0)?b:a,m=norm(newer);
+  const seen=r=>r?(r.r||0)+(r.w||0):-1;   // how many answers a word record has seen
+  m.srs={};new Set([...Object.keys(a.srs),...Object.keys(b.srs)]).forEach(w=>{const x=a.srs[w],y=b.srs[w];
+    m.srs[w]=!x?y:!y?x:(seen(y)>seen(x)||(seen(y)===seen(x)&&(y.d||0)>(x.d||0)))?y:x});
+  m.log={};new Set([...Object.keys(a.log),...Object.keys(b.log)]).forEach(d=>{const x=a.log[d]||{},y=b.log[d]||{},o={};
+    new Set([...Object.keys(x),...Object.keys(y)]).forEach(k=>o[k]=Math.max(x[k]||0,y[k]||0));m.log[d]=o});
+  m.units={};new Set([...Object.keys(a.units),...Object.keys(b.units)]).forEach(u=>{const x=a.units[u],y=b.units[u];
+    m.units[u]=!x?y:!y?x:((y.stars||0)>(x.stars||0)?y:x)});
+  m.stats=Object.assign({},m.stats,{perfect:Math.max(a.stats.perfect||0,b.stats.perfect||0)});
+  m.updatedAt=Math.max(a.updatedAt||0,b.updatedAt||0);return m}
+const canon=v=>v&&typeof v==="object"?(Array.isArray(v)?"["+v.map(canon).join(",")+"]":"{"+Object.keys(v).sort().map(k=>JSON.stringify(k)+":"+canon(v[k])).join(",")+"}"):JSON.stringify(v);
+const sameProgress=(x,y)=>canon([x.srs,x.log,x.units,x.stats])===canon([y.srs,y.log,y.units,y.stats]);   // key order does not matter
+async function fetchRemote(){const {data,error}=await sb.from("progress").select("state").eq("user_id",USER.id).maybeSingle();if(error)throw error;return data&&data.state?data.state:null}
 async function flush(){
   clearTimeout(timer);if(!sb||!USER||USER.guest||!dirty||writing)return;writing=true;dirty=false;
-  try{const {error}=await sb.from("progress").upsert({user_id:USER.id,state,updated_at:new Date().toISOString()});
-    if(error)throw error;syncMode="synced"}catch(e){dirty=true;syncMode="local"}
+  try{const remote=await fetchRemote();   // read first, so another device's progress is kept
+    const merged=remote?mergeState(remote,state):state;
+    const {error}=await sb.from("progress").upsert({user_id:USER.id,state:merged,updated_at:new Date().toISOString()});
+    if(error)throw error;
+    if(!sameProgress(merged,state)){state=merged;saveLocal();if(!S)render()}
+    syncMode="synced"}catch(e){dirty=true;syncMode="local"}
   writing=false;if(dirty)timer=setTimeout(flush,5000);
 }
-document.addEventListener("visibilitychange",()=>{if(document.visibilityState==="hidden")flush()});
 async function loadRemote(){
-  try{const {data,error}=await sb.from("progress").select("state").eq("user_id",USER.id).maybeSingle();if(error)throw error;
-    syncMode="synced";
-    if(data&&data.state&&(data.state.updatedAt||0)>state.updatedAt){state=norm(data.state);saveLocal()}
-    else if(state.updatedAt>0){dirty=true;flush()}}catch(e){syncMode="local"}
+  try{const remote=await fetchRemote();syncMode="synced";if(!remote){if(state.updatedAt>0){dirty=true;flush()}return}
+    const merged=mergeState(remote,state),changedHere=!sameProgress(merged,state),remoteBehind=!sameProgress(merged,norm(remote));
+    if(changedHere){state=merged;saveLocal()}
+    if(remoteBehind){dirty=true;flush()}
+    return changedHere}catch(e){syncMode="local";return false}
 }
+/* coming back to the app: pick up progress and purchases made on other devices */
+let lastRefresh=0;
+async function refreshFromServer(){
+  if(!sb||!USER||USER.guest||!READY||Date.now()-lastRefresh<15000)return;lastRefresh=Date.now();
+  const was=ENT&&ENT.expires_at;const [changed]=await Promise.all([loadRemote(),loadEnt()]);
+  if((changed||(ENT&&ENT.expires_at)!==was)&&!S)render()}
+document.addEventListener("visibilitychange",()=>{if(document.visibilityState==="hidden")flush();else refreshFromServer()});
+window.addEventListener("pageshow",e=>{if(e.persisted)refreshFromServer()});
+window.addEventListener("focus",refreshFromServer);
 async function loadEnt(){
   if(DEMO){try{ENT=JSON.parse(localStorage.getItem(LS+":demo-ent"))}catch(e){ENT=null}return}
   try{const {data}=await sb.from("entitlements").select("*").eq("user_id",USER.id).maybeSingle();ENT=data||null}catch(e){}
@@ -384,7 +413,7 @@ function adoptGuest(){ // merge guest progress into the signed-in account, never
 }
 async function boot(u){USER=u;state=loadLocal();loginOpen=false;
   if(u.guest){ENT=null;READY=true;render();return}
-  if(sb)await Promise.all([loadRemote(),loadEnt()]);else await loadEnt();
+  if(sb){await Promise.all([loadRemote(),loadEnt()]);lastRefresh=Date.now()}else await loadEnt();
   adoptGuest();await checkGuarantee();READY=true;render()}
 (async()=>{
   if(DEMO){await boot({id:"demo",email:"demo@example.com"});return}
