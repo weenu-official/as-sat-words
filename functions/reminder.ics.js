@@ -2,7 +2,7 @@
 // A daily study reminder as a calendar file (Cloudflare Pages Function).
 // iPhones only show the "Add to Calendar" sheet for a calendar file served over https,
 // so the app links here instead of building the file in the page. Nothing is stored.
-const DAYS = 44; // matches the 44-day plan
+const DAYS = 44; // covers the 44-day promise window (the plan itself is 35 days)
 
 export function onRequestGet({ request }) {
   const u = new URL(request.url);

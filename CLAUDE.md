@@ -16,7 +16,8 @@ Story: built by a mom for her daughter "A" (never use the daughter's real name a
 - Free trial: Units 1–3 (first 30 words). Units 4–35 locked until paid.
 - 3-month program: +90 days access (stacks on top of an active period). Launch price $29 / 39,000원, regular $39 / 49,000원.
 - Review pass: +30 days, $7.99 / 9,900원. One-time payments only. No subscriptions.
-- 44-day promise: after day 44 from `program_start`, if not all 350 words started AND study days (days with answers or new words) in that window >= 30 => +30 days, once. Decided server-side only.
+- Plan: the 15-minute plan is 10 new words a day (one unit a day), so 350 words take 35 days (changed from 8 words / 44 days on 2026-10-03 by the owner).
+- 44-day promise: after day 44 from `program_start`, if not all 350 words started AND study days (days with answers or new words) in that window >= 35 (raised from 30 on 2026-10-03) => +30 days, once. Decided server-side only.
 - Entitlements are written ONLY by the two edge functions (service role). Clients can read their own row, never write it.
 - Refund policy shown to users: within 7 days if units beyond the trial were not used.
 

@@ -290,10 +290,11 @@ const TRACK_OF=i=>"basic";
 
 /* ---------- state ---------- */
 const OPTS=[5,10,15,20,30,45];
-function perDay(m){return Math.max(3,Math.round(m/2))}
-function blank(){return {srs:{},log:{},settings:{minutes:15,daily:8,track:"basic",name:"",pin:""},stats:{perfect:0},units:{},updatedAt:0}}
+function perDay(m){return Math.max(3,Math.round(m*2/3))}   // 15 min -> 10 new words: one unit a day, 35 days
+function blank(){return {srs:{},log:{},settings:{minutes:15,daily:10,track:"basic",name:"",pin:""},stats:{perfect:0},units:{},updatedAt:0}}
 function norm(s){const b=blank();const st=Object.assign({},b.settings,s.settings||{});
-  if(!OPTS.includes(st.minutes)){st.minutes=15;st.daily=8}
+  if(!OPTS.includes(st.minutes))st.minutes=15;
+  st.daily=perDay(st.minutes);   // the daily target always follows the chosen minutes
   if(!TRACKS[st.track])st.track="basic";
   return {srs:s.srs||{},log:s.log||{},settings:st,stats:Object.assign({},b.stats,s.stats||{}),units:s.units||{},updatedAt:s.updatedAt||0}}
 function lsKey(){return LS+":"+(USER?USER.id:"guest")}
@@ -303,7 +304,7 @@ function saveLocal(){try{localStorage.setItem(lsKey(),JSON.stringify(state))}cat
 /* ---------- backend: Supabase (progress, entitlements) + Paddle (checkout) ---------- */
 const CFG=window.AS_CONFIG||{};
 const DEMO=!CFG.supabaseUrl;          // no backend configured: local demo with simulated purchases
-const FREE_WORDS=30, PROGRAM_DAYS=90, PROMISE_DAYS=44, PROMISE_STUDY_DAYS=30, EXT_DAYS=30;
+const FREE_WORDS=30, PROGRAM_DAYS=90, PROMISE_DAYS=44, PROMISE_STUDY_DAYS=35, EXT_DAYS=30;
 let sb=null,DB=null,ENT=null,dirty=false,writing=false,timer=null;
 function save(){state.updatedAt=Date.now();saveLocal();dirty=true;clearTimeout(timer);timer=setTimeout(flush,2000)}
 async function flush(){
@@ -326,7 +327,7 @@ async function loadEnt(){
 function paid(){return !!(ENT&&ENT.expires_at&&new Date(ENT.expires_at)>new Date())}
 function daysLeft(){return ENT&&ENT.expires_at?Math.max(0,Math.ceil((new Date(ENT.expires_at)-new Date())/864e5)):0}
 const dstr=iso=>new Date(iso).toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"});
-function promise(){ // 44-day completion promise
+function promise(){ // 44-day completion promise: 35 study days of the first 44
   if(!ENT||!ENT.program_start)return null;
   const start=new Date(ENT.program_start),end=new Date(start.getTime()+PROMISE_DAYS*864e5);
   const s0=Math.floor((start.getTime()-start.getTimezoneOffset()*6e4)/864e5);
@@ -677,7 +678,7 @@ function unitMapHTML(){
 const LOCK='<svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.4" aria-hidden="true"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg>';
 function unlockCard(title,body){return `<div class="paywall"><b>${title}</b><p>${body}</p>
   <div class="actions"><button class="btn" data-parent-unlock style="flex:1">I'm a parent: unlock all 350</button></div>
-  <p class="small muted" style="margin:10px 0 0">3-month program${priceLabel("program")?" · "+priceLabel("program"):""}. Includes the 44-day completion promise.</p></div>`}
+  <p class="small muted" style="margin:10px 0 0">3-month program${priceLabel("program")?" · "+priceLabel("program"):""}. Includes the ${PROMISE_DAYS}-day completion promise.</p></div>`}
 function unitSheet(){
   const track=state.settings.track,n=unitOpen,st=unitState(track,n);
   if(!paid()&&n*UNIT>=FREE_WORDS)return `<div class="sheet" role="dialog" aria-label="Unit ${n+1}"><div class="row"><h2 style="margin:0">Unit ${n+1}</h2><button class="btn ghost" id="closeU" style="min-height:36px;padding:6px 12px;font-size:14px">Close</button></div>
@@ -705,7 +706,7 @@ function reminderParts(){ // a 15-minute event starting today at the chosen loca
   const a=new Date(d.getFullYear(),d.getMonth(),d.getDate(),h,m),b=new Date(a.getTime()+15*6e4);
   const f=x=>x.getFullYear()+p(x.getMonth()+1)+p(x.getDate())+"T"+p(x.getHours())+p(x.getMinutes())+"00";
   return{start:f(a),end:f(b),url:location.origin+"/app/",title:"A's SAT Words: 15 minutes"}}
-const REMIND_DAYS=PROMISE_DAYS;   // 44: the length of the plan
+const REMIND_DAYS=PROMISE_DAYS;   // 44: covers the whole promise window
 function reminderFile(){const r=reminderParts();return "/reminder.ics?t="+HABIT.time.replace(":","")+"&d="+r.start.slice(0,8)}   // built by functions/reminder.ics.js
 function reminderGoogle(){const r=reminderParts();return "https://calendar.google.com/calendar/render?action=TEMPLATE&text="+encodeURIComponent(r.title)+"&dates="+r.start+"/"+r.end+
   "&recur="+encodeURIComponent("RRULE:FREQ=DAILY;COUNT="+REMIND_DAYS)+"&details="+encodeURIComponent("Today's words are ready. "+r.url)+"&crm=AVAILABLE&trp=false"}
@@ -752,7 +753,7 @@ function renderToday(){
   const st=streak(),cu=currentUnit();
   const g=promise();
   const trialBanner=!paid()?(trialDone()?unlockCard("You finished the free trial","You learned all 30 trial words. Keep going with the full 350-word program; your progress carries over."):`<div class="trial"><b>Free trial</b> · Units 1 to 3 (30 words). ${TRACKS.basic.idx.slice(0,FREE_WORDS).filter(i=>rec(i)).length} of 30 learned.</div>`):"";
-  const promiseBanner=g&&!g.over?`<div class="promise"><div class="row"><b>44-day promise</b><span class="small">${g.studied} of ${PROMISE_STUDY_DAYS} study days</span></div>
+  const promiseBanner=g&&!g.over?`<div class="promise"><div class="row"><b>${PROMISE_DAYS}-day promise</b><span class="small">${g.studied} of ${PROMISE_STUDY_DAYS} study days</span></div>
     <div class="gbar"><i style="width:${Math.min(100,g.studied/PROMISE_STUDY_DAYS*100)}%;background:var(--ink)"></i></div>
     <p class="small muted" style="margin:0">Study on ${PROMISE_STUDY_DAYS} of the first ${PROMISE_DAYS} days. If all 350 words aren't finished by ${dstr(g.end.toISOString())}, you get an extra month free.</p></div>`:"";
   app.innerHTML=`<h1>${greet}${state.settings.name?", "+esc(state.settings.name):""}</h1>
@@ -851,9 +852,9 @@ function accountHTML(){
     actions=`<button class="btn" data-buy="extension">Buy a 30-day review pass${priceLabel("extension")?" · "+priceLabel("extension"):""}</button>`}
   else{status=`<b>Free trial</b><span>Units 1 to 3 (30 words). The full program unlocks all 350 words for 3 months.</span>`;
     actions=`<button class="btn" data-buy="program">Unlock the 3-month program${priceLabel("program")?" · "+priceLabel("program"):""}</button>`}
-  const gtxt=!g?"":g.status==="extended"?"Promise applied: one extra month was added.":g.status==="completed"?"All 350 words finished within 44 days.":g.status==="not_eligible"?`Promise period ended with ${g.studied} study days (${PROMISE_STUDY_DAYS} needed).`:`${g.studied} of ${PROMISE_STUDY_DAYS} study days so far. Ends ${dstr(g.end.toISOString())}.`;
+  const gtxt=!g?"":g.status==="extended"?"Promise applied: one extra month was added.":g.status==="completed"?`All 350 words finished within ${PROMISE_DAYS} days.`:g.status==="not_eligible"?`Promise period ended with ${g.studied} study days (${PROMISE_STUDY_DAYS} needed).`:`${g.studied} of ${PROMISE_STUDY_DAYS} study days so far. Ends ${dstr(g.end.toISOString())}.`;
   return `<section class="acct"><h2 style="margin-top:0">Plan</h2><div class="pstatus on">${status}</div>
-    ${g?`<p class="small muted" style="margin:10px 0 0"><b>44-day promise:</b> ${gtxt}</p>`:""}
+    ${g?`<p class="small muted" style="margin:10px 0 0"><b>${PROMISE_DAYS}-day promise:</b> ${gtxt}</p>`:""}
     <div class="actions" style="flex-wrap:wrap">${actions}</div>
     ${PROMO&&!DEMO?`<p class="small" style="margin:10px 0 0">Promo code <b>${esc(PROMO)}</b> will be applied at checkout. <button class="linkbtn" data-promo-clear>Remove</button></p>`:""}
     <p class="small muted" style="margin:12px 0 0"><b>Refunds:</b> within 7 days of purchase if units beyond the free trial (Unit 4 and up) haven't been used. Email <a href="mailto:admin@weenu.com?subject=A's%20SAT%20Words%20refund">admin@weenu.com</a> from your account email. <a href="/legal/refund.html" target="_blank" rel="noopener">Refund policy</a></p>
