@@ -225,6 +225,11 @@ body.nosample .morebtn{display:none}
 .pstatus{margin-top:18px;padding:14px 16px;border:1px solid var(--rule);border-left:4px solid var(--l0);border-radius:10px;background:var(--surface)}
 .pstatus.on{border-left-color:var(--ok)}.pstatus b{display:block;font-size:16px}.pstatus span{font-size:14px;color:var(--muted)}
 .units.ro .unit{pointer-events:none;cursor:default}
+.unit.ready{border:2px solid var(--accent)}.unit.ready .stars{font-size:9px;font-weight:800;letter-spacing:.06em;color:var(--accent)}
+.readycard{margin-top:22px;padding:18px;border-radius:14px;border:2px solid var(--accent);background:var(--surface)}
+.starkey{display:flex;gap:8px;flex-wrap:wrap;margin:12px 0 0}
+.starkey span{font-size:13px;color:var(--muted);border:1px solid var(--rule);border-radius:999px;padding:4px 10px;background:var(--bg)}
+.starkey b{color:var(--ink);letter-spacing:1px}
 .unit.lock{background:var(--bg);border-style:dashed;color:var(--muted)}.unit.lock b{color:var(--muted)}
 .paywall{margin-top:18px;padding:18px;border:1px solid var(--ink);border-radius:14px;background:var(--surface)}
 .paywall b{font-family:var(--serif);font-size:20px}.paywall p{margin:6px 0 0;color:var(--muted)}
@@ -524,9 +529,9 @@ function renderSessionEnd(){
   const fresh=S.fresh||[];const tr=TRACKS[state.settings.track];
   let head;
   if(S.mode==="boss"){const b=S.bossResult;
-    head=`<h1>${b.stars?"Unit "+(S.unit+1)+" cleared":"Almost there"}</h1>
+    head=`<h1>${b.stars?"Unit "+(S.unit+1)+" cleared!":"So close"}</h1>
     <p class="stars big" aria-label="${b.stars} of 3 stars">${"★".repeat(b.stars)}<span>${"★".repeat(3-b.stars)}</span></p>
-    <p class="muted" style="margin:0">${b.n} of ${b.tot} correct. ${b.stars?(b.stars===3?"Perfect score.":"Score "+b.tot+"/"+b.tot+" for three stars."):"Get "+(b.tot-2)+" or more right to clear the unit. "+(S.testOut?"Words you got right are marked as known; the rest will come up as new words.":"Words you missed are back in your reviews.")}</p>`}
+    <p class="muted" style="margin:0">${b.n} of ${b.tot} correct. ${b.stars?(b.stars===3?"Perfect score. Every word, nailed.":"Get "+b.tot+"/"+b.tot+" for three stars. Retake it anytime."):"Get "+(b.tot-2)+" or more right to clear the unit. "+(S.testOut?"Words you got right are marked as known; the rest will come up as new words.":"Words you missed are back in your reviews.")}</p>`}
   else{const pct=S.first?Math.round(S.firstOk/S.first*100):0;
     head=`<h1>Session complete</h1><p class="muted" style="margin:0">${S.firstOk} of ${S.first} words right on the first try.</p>
     <div class="figs"><div class="fig"><b>+${gained}</b><span>words added</span></div><div class="fig"><b>${pct}%</b><span>first-try accuracy</span></div></div>`}
@@ -542,7 +547,7 @@ function renderSession(){
   if(S.pos>=S.q.length){renderSessionEnd();return}
   const item=S.q[S.pos],o=DATA[item.i];
   const pct=Math.round(S.pos/S.q.length*100);
-  const label=S.mode==="boss"?`Unit ${S.unit+1} ${S.testOut?"test-out":"boss round"}`:"";
+  const label=S.mode==="boss"?`Unit ${S.unit+1} ${S.testOut?"test out":"test"}`:"";
   const top=`<div class="row" style="margin-top:14px"><span class="small muted">${label?label+" · ":""}${S.pos+1} of ${S.q.length}</span><button class="btn ghost" id="quit" style="min-height:36px;padding:6px 12px;font-size:14px">End session</button></div><div class="progress"><i style="width:${pct}%"></i></div>`;
   if(item.t==="learn"){
     app.innerHTML=top+`<div class="card"><div class="kind"><span>New word · Unit ${Math.floor(TRACKS[TRACK_OF(item.i)].idx.indexOf(item.i)/UNIT)+1}</span></div>
@@ -666,9 +671,9 @@ function planHTML(){const rows=OPTS.map(m=>({m,w:perDay(m),f:finishFor(perDay(m)
     <span class="pd"><b>${r.f.d} days</b>${fmtDay(r.f.day).replace(/, \d{4}$/,"")}</span></button>`).join("")}</div>`}
 function unitMapHTML(){
   const track=state.settings.track,us=unitsOf(track),cur=currentUnit(track);
-  return `<div class="units">${us.map((u,n)=>{const st=unitState(track,n);const locked=!paid()&&n*UNIT>=FREE_WORDS;const cls=locked?"lock":st.cleared?"done":(n===cur?"cur":(st.learned?"part":""));
+  return `<div class="units">${us.map((u,n)=>{const st=unitState(track,n);const locked=!paid()&&n*UNIT>=FREE_WORDS;const ready=!locked&&st.ready&&!st.cleared;const cls=locked?"lock":st.cleared?"done":ready?"ready":(n===cur?"cur":(st.learned?"part":""));
     if(locked)return `<button class="unit lock" data-unit="${n}" aria-label="Unit ${n+1}, locked"><b>${n+1}</b><span class="stars">${LOCK}</span></button>`;
-    return `<button class="unit ${cls}" data-unit="${n}" aria-label="Unit ${n+1}${st.cleared?", "+st.stars+" stars":""}"><b>${n+1}</b><span class="stars">${st.cleared?"★".repeat(st.stars)+`<span>${"★".repeat(3-st.stars)}</span>`:(st.learned?st.learned+"/"+u.length:"")}</span></button>`}).join("")}</div>`}
+    return `<button class="unit ${cls}" data-unit="${n}" aria-label="Unit ${n+1}${st.cleared?", "+st.stars+" stars":ready?", ready for the unit test":""}"><b>${n+1}</b><span class="stars">${ready?"TEST":st.cleared?"★".repeat(st.stars)+`<span>${"★".repeat(3-st.stars)}</span>`:(st.learned?st.learned+"/"+u.length:"")}</span></button>`}).join("")}</div>`}
 const LOCK='<svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.4" aria-hidden="true"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg>';
 function unlockCard(title,body){return `<div class="paywall"><b>${title}</b><p>${body}</p>
   <div class="actions"><button class="btn" data-parent-unlock style="flex:1">I'm a parent: unlock all 350</button></div>
@@ -677,12 +682,13 @@ function unitSheet(){
   const track=state.settings.track,n=unitOpen,st=unitState(track,n);
   if(!paid()&&n*UNIT>=FREE_WORDS)return `<div class="sheet" role="dialog" aria-label="Unit ${n+1}"><div class="row"><h2 style="margin:0">Unit ${n+1}</h2><button class="btn ghost" id="closeU" style="min-height:36px;padding:6px 12px;font-size:14px">Close</button></div>
     <p class="small muted" style="margin:6px 0 12px">Units 4 to 35 are part of the full program.</p>${unlockCard("320 more words are waiting","Your free trial covers Units 1 to 3. Ask a parent to unlock the full 350-word program.")}</div>`;
-  const mode=st.ready?"Boss round":"Test out";
+  const mode=st.ready?"Unit test":"Test out";
   return `<div class="sheet" role="dialog" aria-label="Unit ${n+1}">
     <div class="row"><h2 style="margin:0">Unit ${n+1}</h2><button class="btn ghost" id="closeU" style="min-height:36px;padding:6px 12px;font-size:14px">Close</button></div>
-    <p class="small muted" style="margin:6px 0 12px">${st.cleared?"Cleared with "+st.stars+" star"+(st.stars>1?"s":"")+". Replay the boss round anytime for three stars.":st.ready?"All 10 words learned. Beat the boss round to clear this unit: 8 of 10 earns a star, 10 of 10 earns three.":"Already know these words? Take the test-out. Every word you answer correctly is marked as known, so you skip it. Score 8 or more to clear the unit."}</p>
+    <p class="small muted" style="margin:6px 0 12px">${st.cleared?"Cleared with "+st.stars+" star"+(st.stars>1?"s":"")+". Retake the unit test anytime to go for three stars.":st.ready?"All 10 words learned. Now prove it: the unit test is 10 questions, one for each word.":"Already know some of these words? Test out: 10 questions, one for each word. Every word you get right is marked as known, so you skip it."}</p>
+    <div class="starkey" aria-label="Stars: 8 of 10 earns one, 9 earns two, 10 earns three"><span>8/10 <b>★</b></span><span>9/10 <b>★★</b></span><span>10/10 <b>★★★</b></span></div>
     <div class="uwords">${st.words.map(i=>`<span class="uw ${status(i)}">${esc(DATA[i].w)}</span>`).join("")}</div>
-    <button class="btn wide" id="bossGo" style="margin-top:16px">Start ${mode.toLowerCase()} (10 questions)</button></div>`}
+    <button class="btn wide" id="bossGo" style="margin-top:16px">${st.cleared?"Retake unit test":"Start "+mode.toLowerCase()} (10 questions)</button></div>`}
 /* ---------- home screen + daily reminder (kept on this device, not synced) ---------- */
 const HKEY=LS+":habit";
 let HABIT={hide:false,time:"20:00",set:false};try{Object.assign(HABIT,JSON.parse(localStorage.getItem(HKEY))||{})}catch(e){}
@@ -730,6 +736,13 @@ function habitHTML(){
     <div class="hrow"><div><b>Home screen</b><span>Open A's SAT Words with one tap, like an app.</span></div>${inst}</div>
     <div class="hrow"><div><b>Daily reminder</b><span>${HABIT.set?`Added to your calendar for ${fmtTime(HABIT.time)}. Change the time and add it again to move it.`:`A calendar alert at the time you choose, every day for ${REMIND_DAYS} days.`}</span></div>
       <div class="hctl"><input type="time" id="remTime" value="${HABIT.time}" aria-label="Reminder time"><a class="btn ghost" data-gcal href="${esc(reminderGoogle())}" target="_blank" rel="noopener">Google Calendar</a><a class="btn ghost" data-ics href="${esc(reminderFile())}">Apple / other</a></div></div></section>`}
+function testReadyHTML(){ // the first unit whose words are all learned but whose test is not passed yet
+  const track=state.settings.track,us=unitsOf(track);
+  for(let n=0;n<us.length;n++){if(!paid()&&n*UNIT>=FREE_WORDS)break;const st=unitState(track,n);
+    if(st.ready&&!st.cleared)return `<section class="readycard"><b>Unit ${n+1} is ready for its unit test</b>
+      <p class="small" style="margin:4px 0 0">You learned all 10 words. Ten quick questions to lock them in and earn your stars.</p>
+      <div class="starkey" aria-label="Stars: 8 of 10 earns one, 9 earns two, 10 earns three"><span>8/10 <b>★</b></span><span>9/10 <b>★★</b></span><span>10/10 <b>★★★</b></span></div><button class="btn wide" data-unittest="${n}" style="margin-top:12px">Take the Unit ${n+1} test</button></section>`}
+  return ""}
 function renderToday(){
   const track=state.settings.track,tr=TRACKS[track];
   const due=dueList().length,nw=newList().length,L=tl();
@@ -751,9 +764,10 @@ function renderToday(){
       <p class="small muted" style="margin:0 0 16px">${remain===0?"You finished today's plan. Clear a unit or learn 5 bonus words to pull your finish date closer.":`${done} of ${total} done. ${nw} new word${nw===1?"":"s"} from Unit ${cu+1} and ${Math.min(due,40)} review${due===1?"":"s"} left.`}</p>
       ${remain===0?(trialDone()?"":`<button class="btn ghost wide" id="more">Learn 5 bonus words</button>`):`<button class="btn wide" id="go">${done?"Continue":"Start today's session"}</button>`}
     </section>
+    ${testReadyHTML()}
     ${habitHTML()}
     <h2 style="margin-bottom:4px">Units</h2>
-    <p class="small muted" style="margin:0">10 words per unit. Tap a unit to take its boss round or test out of words you already know.</p>
+    <p class="small muted" style="margin:0">Learn 10 words, then take the unit test to earn up to three stars. Already know a unit? Tap it to test out.</p>
     ${unitMapHTML()}
     ${unitOpen!=null?unitSheet():""}
     <h2>This week${st?`<span class="small muted" style="font-weight:500;margin-left:8px">${st}-day streak</span>`:""}</h2>
@@ -852,7 +866,7 @@ function renderParent(){
     ${accountHTML()}
     ${journeyHTML()}
     <h2>This week</h2>${weekHTML()}
-    <h2 style="margin-bottom:4px">Units</h2><p class="small muted" style="margin:0">Yellow is the current unit. Stars show boss rounds cleared.</p>
+    <h2 style="margin-bottom:4px">Units</h2><p class="small muted" style="margin:0">Yellow is the current unit. Stars show unit tests passed.</p>
     ${unitMapHTML().replace('class="units"','class="units ro"')}
     ${progressHTML(true)}
     <h2>Settings</h2>
@@ -904,6 +918,7 @@ document.querySelectorAll("nav button").forEach(b=>b.onclick=()=>{tab=b.dataset.
 app.addEventListener("change",e=>{if(e.target.id==="remTime"){HABIT.time=e.target.value||"20:00";HABIT.set=false;saveHabit();render()}});
 app.addEventListener("click",e=>{
   if(e.target.closest("[data-install]")){if(installEvt){const ev=installEvt;installEvt=null;ev.prompt();Promise.resolve(ev.userChoice).finally(()=>{if(onToday())render()})}return}
+  const ut=e.target.closest("[data-unittest]");if(ut){startBoss(state.settings.track,+ut.dataset.unittest);return}
   if(e.target.closest("[data-promo-clear]")){PROMO=null;try{localStorage.removeItem(PROMO_KEY)}catch(x){}render();return}
   if(e.target.closest("[data-habit-hide]")){HABIT.hide=true;saveHabit();render();return}
   if(e.target.closest("[data-habit-show]")){HABIT.hide=false;saveHabit();render();return}
